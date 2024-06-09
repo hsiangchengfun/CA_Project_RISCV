@@ -54,10 +54,11 @@ class topTest(dut:top) extends PeekPokeTester(dut){
         var EXE_Branch = peek(dut.io.EXE_Branch).toInt
         var IF_rs1 = (peek(dut.io.IF_rs1).toInt.toHexString).replace(' ', '0')
         var IF_rs2 = (peek(dut.io.IF_rs2).toInt.toHexString).replace(' ', '0')
-        Mem_Read_Cycle = (peek(dut.io.Mem_Read).toInt) + Mem_Read_Cycle
-        Mem_Read_Stall_Cycle = (peek(dut.io.Mem_Read_Stall).toInt) + Mem_Read_Stall_Cycle
-        Mem_Write_Cycle = (peek(dut.io.Mem_Write).toInt) + Mem_Write_Cycle
-        
+        var MEM_STALL = peek(dut.io.MEM_STALL).toInt
+        var MULDIV_STALL = peek(dut.io.MEM_STALL).toInt
+        var ALU_SEL = peek(dut.io.ALU_SEL).toInt.toHexString
+        var Stall_LOAD_DH = peek(dut.io.Stall_LOAD_DH).toInt
+
         println(s"[PC_IF ]${"%8d".format(PC_IF)} [Inst] ${"%-25s".format(lines(PC_IF>>2))} ")
         println(s"[PC_ID ]${"%8d".format(PC_ID)} [Inst] ${"%-25s".format(lines(PC_ID>>2))} ")
         println(s"[PC_EXE]${"%8d".format(PC_EXE)} [Inst] ${"%-25s".format(lines(PC_EXE>>2))} "+
@@ -75,6 +76,8 @@ class topTest(dut:top) extends PeekPokeTester(dut){
         println(s"[IF_rs1 ] ${"%8s".format(IF_rs1)} [IF_rs2 ] ${"%8s".format(IF_rs2)} ")
         println(s"[rs1_fwdSel ] ${"%2d".format(ID_rs1_forwardingSel)}  [rs2_fwdSel ] ${"%2d".format(ID_rs2_forwardingSel)}")
         println(s"[fwd_WB ] ${"%8s".format(fwd_WB_data)} [fwd_MEM_ld ] ${"%8s".format(fwd_MEM_ld_data)} [fwd_MEM_alu ] ${"%8s".format(fwd_MEM_alu_data)} [fwd_EXE ] ${"%8s".format(fwd_EXE_data)} ")
+        println(s"[MEM_STALL ] ${"%1d".format(MEM_STALL)} [MULDIV_STALL ] ${"%1d".format(MULDIV_STALL)} ")
+        println(s"[ALU_SEL ] ${"%4s".format(ALU_SEL)} [Stall_LOAD_DH] ${"%1d".format(Stall_LOAD_DH)}")
         println("==============================================")
 
         step(1)
@@ -105,14 +108,6 @@ class topTest(dut:top) extends PeekPokeTester(dut){
                 s"reg[${"%02d".format(8*i+6)}]：${value_6} " +
                 s"reg[${"%02d".format(8*i+7)}]：${value_7} ")
     }
-
-    println(s"Mem_Read_Stall_Cycle : ${"%8s".format(Mem_Read_Stall_Cycle)}")
-    println(s"Mem_Read_Request : ${"%8s".format(Mem_Read_Cycle)}")
-    println(s"Mem_Write_Request : ${"%8s".format(Mem_Write_Cycle)}")
-    println(s"Mem_Read_Bytes : ${"%8s".format(Mem_Read_Cycle*4)}")
-    println(s"Mem_Write_Bytes : ${"%8s".format(Mem_Write_Cycle*4)}\n")
-    println(s"Average Mem Read Request Stall Cycle : ${"%8s".format(Mem_Read_Stall_Cycle/Mem_Read_Cycle)}")
-    println(s"Total Bus bandwidth requiement : ${"%8s".format(Mem_Read_Cycle*4 + Mem_Write_Cycle*4)}")
 }
 
 object topTest extends App{

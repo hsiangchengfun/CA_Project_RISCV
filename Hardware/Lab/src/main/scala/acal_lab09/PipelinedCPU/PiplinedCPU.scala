@@ -59,9 +59,14 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
         val fwd_MEM_alu_data = Output(UInt(32.W))
         val fwd_EXE_data = Output(UInt(32.W))
 
-        val Mem_Read_Stall = Output(Bool())
-        val Mem_Read = Output(Bool())
-        val Mem_Write = Output(Bool())
+        val MEM_STALL = Output(Bool())
+        val MULDIV_STALL = Output(Bool())
+
+        val ALU_SEL = Output(UInt(15.W))      
+        val Stall_LOAD_DH = Output(Bool())
+
+        val DM_Length = Output(UInt(4.W))
+
     })
     /*****  Pipeline Stages Registers Module for holding data *****/
     // stage Registers
@@ -84,7 +89,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     /* Wire Connect */
     // === IF stage reg (PC reg) ======================================================
     //stage_IF.io.Stall := controller.io.Stall_MEM_ID_DH | controller.io.Stall_EXE_ID_DH | controller.io.Flush_WB_ID_DH       // To Be Modified
-    stage_IF.io.Stall := controller.io.Stall_LOAD_DH
+    stage_IF.io.Stall := controller.io.Stall_LOAD_DH | controller.io.MEM_STALL | controller.io.MULDIV_STALL
     stage_IF.io.next_pc_in := datapath_IF.io.next_pc
 
     // IF Block Datapath
@@ -106,7 +111,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     //stage_ID.io.Flush := controller.io.Flush_BH   // To Be Modified
     //stage_ID.io.Stall := controller.io.Stall_WB_ID_DH | controller.io.Stall_MEM_ID_DH | controller.io.Stall_EXE_ID_DH     // To Be Modified
     stage_ID.io.Flush := controller.io.Flush_BH
-    stage_ID.io.Stall := controller.io.Stall_LOAD_DH
+    stage_ID.io.Stall := controller.io.Stall_LOAD_DH | controller.io.MEM_STALL | controller.io.MULDIV_STALL
     stage_ID.io.inst_in := datapath_IF.io.inst
     stage_ID.io.pc_in := stage_IF.io.pc
 
@@ -120,7 +125,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     // === EXE stage reg ==============================================================
     //stage_EXE.io.Flush := controller.io.Flush_WB_ID_DH | controller.io.Flush_MEM_ID_DH | controller.io.Flush_EXE_ID_DH | controller.io.Flush_BH
     stage_EXE.io.Flush := controller.io.Stall_LOAD_DH | controller.io.Flush_BH
-    stage_EXE.io.Stall := false.B   // To Be Modified
+    stage_EXE.io.Stall := controller.io.MEM_STALL | controller.io.MULDIV_STALL   // To Be Modified
     stage_EXE.io.pc_in := stage_ID.io.pc
     stage_EXE.io.inst_in := stage_ID.io.inst
     stage_EXE.io.imm_in := datapath_ID.io.imm
@@ -142,7 +147,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     io.fwd_MEM_alu_data := datapath_MEM.io.MEM_alu_out
     io.fwd_EXE_data := 0.U(32.W)
     // === MEM stage reg ==============================================================
-    stage_MEM.io.Stall := false.B        // To Be Modified
+    stage_MEM.io.Stall := controller.io.MEM_STALL | controller.io.MULDIV_STALL        // To Be Modified
     stage_MEM.io.pc_in := stage_EXE.io.pc
     stage_MEM.io.inst_in := stage_EXE.io.inst
     stage_MEM.io.DM_wdata_in := datapath_EXE.io.EXE_rs2_rdata_out
@@ -165,6 +170,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     // === WB stage reg ==============================================================
     //stage_WB.io.Stall := controller.io.Hcf        // To Be Modified
     stage_WB.io.Stall := false.B
+    stage_WB.io.Flush := controller.io.MEM_STALL
     stage_WB.io.pc_plus4_in := datapath_MEM.io.MEM_pc_plus_4
     stage_WB.io.inst_in := stage_MEM.io.inst
     stage_WB.io.alu_out_in := datapath_MEM.io.MEM_alu_out
@@ -239,8 +245,12 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     io.EXE_Jump := (stage_EXE.io.inst(6, 0)===JAL) || (stage_EXE.io.inst(6, 0)===JALR)
     io.EXE_Branch := (stage_EXE.io.inst(6, 0)===BRANCH)
 
-    io.Mem_Read_Stall := controller.io.Mem_Read_Stall
-    io.Mem_Read := controller.io.Mem_Read
-    io.Mem_Write := controller.io.Mem_Write
+    io.MEM_STALL := controller.io.MEM_STALL
+    io.MULDIV_STALL := controller.io.MULDIV_STALL
+
+    io.ALU_SEL := controller.io.E_ALUSel
+    io.Stall_LOAD_DH := controller.io.Stall_LOAD_DH
+
+    io.DM_Length := controller.io.DM_Length
 
 }

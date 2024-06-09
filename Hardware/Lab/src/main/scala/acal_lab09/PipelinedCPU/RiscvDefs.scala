@@ -58,6 +58,8 @@ object alu_op_map {
   val AND = "b0000000_11111_111".U
   val SUB = "b0100000_11111_000".U
   val SRA = "b0100000_11111_101".U
+  val MUL = "b0000001_11111_000".U
+  val DIV = "b0000001_11111_100".U
 }
 
 object pc_sel_map {
@@ -81,10 +83,10 @@ object forwarding_sel_map {
 }
 
 object wide {
-  val Byte = "b0000".U
-  val Half = "b0001".U
-  val Word = "b0010".U
-  val UByte = "b0100".U
-  val UHalf = "b0101".U
+  val Byte = "b0001".U
+  val Half = "b0011".U
+  val Word = "b1111".U
+  val UByte = "b1111".U
+  val UHalf = "b0011".U
   val Vec_8Bytes = "b1000".U
 }

@@ -83,6 +83,9 @@ class Controller(memAddrWidth: Int) extends Module {
     val Mem_Read_Stall = Output(Bool())
     val Mem_Write = Output(Bool())
 
+    val MEM_STALL = Output(Bool())
+    val MULDIV_STALL = Output(Bool())
+
     val Hcf = Output(Bool())
   })
   // Inst Decode for each stage
@@ -344,5 +347,41 @@ class Controller(memAddrWidth: Int) extends Module {
   io.Mem_Read := (MEM_opcode === LOAD)
   io.Mem_Read_Stall := io.Stall_LOAD_DH
   io.Mem_Write := (MEM_opcode === STORE)
+
+
+  val mem_stall_counter = RegInit(0.U(2.W))
+  val muldiv_stall_counter = RegInit(0.U(3.W))
+  when(MEM_opcode === LOAD | MEM_opcode === STORE){
+    when(mem_stall_counter === 1.U){
+      io.MEM_STALL := false.B
+      mem_stall_counter := 0.U
+    }
+    .otherwise{
+      io.MEM_STALL := true.B
+      mem_stall_counter := mem_stall_counter + 1.U
+    }
+  }
+  .otherwise{
+    mem_stall_counter := 0.U
+    io.MEM_STALL := false.B
+  }
+  when(io.E_ALUSel === MUL | io.E_ALUSel === DIV){
+    when(muldiv_stall_counter === 3.U){
+      io.MULDIV_STALL := false.B
+      muldiv_stall_counter := 0.U
+    }
+    .elsewhen(io.Stall_LOAD_DH){
+      io.MULDIV_STALL := true.B
+      muldiv_stall_counter := 0.U
+    }
+    .otherwise{
+      io.MULDIV_STALL := true.B
+      muldiv_stall_counter := muldiv_stall_counter + 1.U
+    }
+  }
+  .otherwise{
+    muldiv_stall_counter := 0.U
+    io.MULDIV_STALL := false.B
+  }
 
 }
