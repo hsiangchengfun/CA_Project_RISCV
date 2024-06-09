@@ -54,9 +54,11 @@ class top extends Module {
         val fwd_MEM_alu_data = Output(UInt(32.W))
         val fwd_EXE_data = Output(UInt(32.W))
 
-        val Mem_Read_Stall = Output(Bool())
-        val Mem_Read = Output(Bool())
-        val Mem_Write = Output(Bool())
+        val MEM_STALL = Output(Bool())
+        val MULDIV_STALL = Output(Bool())
+        
+        val ALU_SEL = Output(UInt(15.W))
+        val Stall_LOAD_DH = Output(Bool())
     })
 
     val cpu = Module(new PiplinedCPU(15,32))
@@ -124,9 +126,11 @@ class top extends Module {
     io.fwd_MEM_alu_data := cpu.io.fwd_MEM_alu_data
     io.fwd_EXE_data := cpu.io.fwd_EXE_data
 
-    io.Mem_Read_Stall := cpu.io.Mem_Read_Stall
-    io.Mem_Read := cpu.io.Mem_Read
-    io.Mem_Write := cpu.io.Mem_Write
+    io.MEM_STALL := cpu.io.MEM_STALL
+    io.MULDIV_STALL := cpu.io.MULDIV_STALL
+
+    io.ALU_SEL := cpu.io.ALU_SEL
+    io.Stall_LOAD_DH := cpu.io.Stall_LOAD_DH
 }
 
 

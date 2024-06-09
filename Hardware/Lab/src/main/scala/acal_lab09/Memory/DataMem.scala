@@ -13,7 +13,7 @@ class DataMem(bits:Int) extends Module {
 
     val wen   = Input(Bool())
     val waddr = Input(UInt(bits.W))
-    val wdata = Input(UInt(32.W))
+    val wdata = Input(UInt(32.W))  
   })
   val DATA_OFFSET = 1<<bits
 
@@ -32,7 +32,6 @@ class DataMem(bits:Int) extends Module {
     Half -> (io.waddr & ~(1.U(bits.W))),
     Word -> (io.waddr & ~(3.U(bits.W))),
   ))
-
   wd := MuxLookup(io.Length,0.U,Seq(
     Byte -> io.wdata(7,0),
     Half -> io.wdata(15,0),
@@ -53,19 +52,41 @@ class DataMem(bits:Int) extends Module {
       memory(wa+2.U(bits.W)) := wd(23,16)
       memory(wa+3.U(bits.W)) := wd(31,24)
     }
+
   }.otherwise{
-    srdata := MuxLookup(io.Length,0.S,Seq(
-      Byte -> memory(io.raddr).asSInt,
-      Half -> Cat(memory((io.raddr & (~(1.U(bits.W)))) +1.U),
-                  memory(io.raddr & (~(1.U(bits.W))))).asSInt,
-      Word -> Cat(memory((io.raddr & ~(3.U(bits.W))) +3.U),
-                  memory((io.raddr & ~(3.U(bits.W))) +2.U),
-                  memory((io.raddr & ~(3.U(bits.W))) +1.U),
-                  memory(io.raddr & ~(3.U(bits.W)))).asSInt,
-      UByte -> Cat(0.U(24.W),memory(io.raddr)).asSInt,
-      UHalf -> Cat(0.U(16.W),
-                  memory((io.raddr & ~(1.U(bits.W))) +1.U),
-                  memory(io.raddr & ~(1.U(bits.W)))).asSInt
-    ))
+    when(io.Length === Byte){
+      srdata := memory(io.raddr).asSInt
+    }.elsewhen(io.Length === Half){
+      srdata := Cat(memory((io.raddr & (~(1.U(bits.W)))) +1.U),
+                    memory(io.raddr & (~(1.U(bits.W))))).asSInt
+    }.elsewhen(io.Length === Word){
+      srdata := Cat(memory((io.raddr & ~(3.U(bits.W))) +3.U),
+                    memory((io.raddr & ~(3.U(bits.W))) +2.U),
+                    memory((io.raddr & ~(3.U(bits.W))) +1.U),
+                    memory(io.raddr & ~(3.U(bits.W)))).asSInt
+    }.elsewhen(io.Length === UByte){
+      srdata := Cat(0.U(24.W),memory(io.raddr)).asSInt
+    }.elsewhen(io.Length === UHalf){
+      srdata := Cat(0.U(16.W),
+                    memory((io.raddr & ~(1.U(bits.W))) +1.U),
+                    memory(io.raddr & ~(1.U(bits.W)))).asSInt
+    }.otherwise{
+      srdata := 0.S
+    }
   }
+  // .otherwise{
+  //   srdata := MuxLookup(io.Length,0.S,Seq(
+  //     Byte -> memory(io.raddr).asSInt,
+  //     Half -> Cat(memory((io.raddr & (~(1.U(bits.W)))) +1.U),
+  //                 memory(io.raddr & (~(1.U(bits.W))))).asSInt,
+  //     Word -> Cat(memory((io.raddr & ~(3.U(bits.W))) +3.U),
+  //                 memory((io.raddr & ~(3.U(bits.W))) +2.U),
+  //                 memory((io.raddr & ~(3.U(bits.W))) +1.U),
+  //                 memory(io.raddr & ~(3.U(bits.W)))).asSInt,
+  //     UByte -> Cat(0.U(24.W),memory(io.raddr)).asSInt,
+  //     UHalf -> Cat(0.U(16.W),
+  //                 memory((io.raddr & ~(1.U(bits.W))) +1.U),
+  //                 memory(io.raddr & ~(1.U(bits.W)))).asSInt
+  //   ))
+  // }
 }

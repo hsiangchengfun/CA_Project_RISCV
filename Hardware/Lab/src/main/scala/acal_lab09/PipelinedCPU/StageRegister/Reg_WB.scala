@@ -6,6 +6,7 @@ import chisel3.util._
 class Reg_WB(addrWidth:Int) extends Module {
     val io = IO(new Bundle{
         val Stall = Input(Bool())
+        val Flush = Input(Bool())
 
         val pc_plus4_in = Input(UInt(addrWidth.W))
         val inst_in = Input(UInt(32.W))
@@ -25,7 +26,13 @@ class Reg_WB(addrWidth:Int) extends Module {
     val ld_data_Reg = RegInit(0.U(32.W))
 
     /*** stage Registers Action ***/
-    when(io.Stall){
+    when(io.Flush){
+        pc_plus4_Reg := 0.U(32.W)
+        InstReg := 0.U(32.W)
+        alu_out_Reg := 0.U(32.W)
+        ld_data_Reg := 0.U(32.W)
+    }
+    .elsewhen(io.Stall){
         pc_plus4_Reg := pc_plus4_Reg
         InstReg := InstReg
         alu_out_Reg := alu_out_Reg

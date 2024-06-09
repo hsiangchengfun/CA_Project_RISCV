@@ -19,6 +19,8 @@ class ALU extends Module{
   io.out := 0.U
   switch(io.ALUSel){
     is(ADD ){io.out := io.src1+io.src2}
+    is(MUL ){io.out := io.src1*io.src2}
+    is(DIV ){io.out := io.src1/io.src2}
     is(SLL ){io.out := io.src1 << io.src2(4,0)}
     is(SLT ){io.out := Mux(io.src1.asSInt < io.src2.asSInt,1.U,0.U)}
     is(SLTU){io.out := Mux(io.src1 < io.src2              ,1.U,0.U)}

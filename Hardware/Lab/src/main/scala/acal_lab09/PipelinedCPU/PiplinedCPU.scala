@@ -59,11 +59,25 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
         val fwd_MEM_alu_data = Output(UInt(32.W))
         val fwd_EXE_data = Output(UInt(32.W))
 
-        val Mem_Read_Stall = Output(Bool())
-        val Mem_Read = Output(Bool())
-        val Mem_Write = Output(Bool())
+        val MEM_STALL = Output(Bool())
+        val MULDIV_STALL = Output(Bool())
+
+        val ALU_SEL = Output(UInt(15.W))      
+        val Stall_LOAD_DH = Output(Bool())
+
+        val DM_Length = Output(UInt(4.W))
+
     })
     /*****  Pipeline Stages Registers Module for holding data *****/
+    val ROB = Module(new Queue(UInt(9.W), 8))
+    // 9 bits
+    // Status ( 1 bit ) o pending 1 finished
+    // Speculative ( 1 bit )
+    // Store Bit ( 1bit )
+    // Valid ( 1 bit )
+    // Physical register ( 5 bits )
+
+
     // stage Registers
     val stage_IF = Module(new Reg_IF(memAddrWidth))
     val stage_ID = Module(new Reg_ID(memAddrWidth))
@@ -84,7 +98,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     /* Wire Connect */
     // === IF stage reg (PC reg) ======================================================
     //stage_IF.io.Stall := controller.io.Stall_MEM_ID_DH | controller.io.Stall_EXE_ID_DH | controller.io.Flush_WB_ID_DH       // To Be Modified
-    stage_IF.io.Stall := controller.io.Stall_LOAD_DH
+    stage_IF.io.Stall := controller.io.Stall_LOAD_DH | controller.io.MEM_STALL | controller.io.MULDIV_STALL
     stage_IF.io.next_pc_in := datapath_IF.io.next_pc
 
     // IF Block Datapath
@@ -106,7 +120,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     //stage_ID.io.Flush := controller.io.Flush_BH   // To Be Modified
     //stage_ID.io.Stall := controller.io.Stall_WB_ID_DH | controller.io.Stall_MEM_ID_DH | controller.io.Stall_EXE_ID_DH     // To Be Modified
     stage_ID.io.Flush := controller.io.Flush_BH
-    stage_ID.io.Stall := controller.io.Stall_LOAD_DH
+    stage_ID.io.Stall := controller.io.Stall_LOAD_DH | controller.io.MEM_STALL | controller.io.MULDIV_STALL
     stage_ID.io.inst_in := datapath_IF.io.inst
     stage_ID.io.pc_in := stage_IF.io.pc
 
@@ -117,10 +131,21 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     datapath_ID.io.WB_RegWEn := controller.io.W_RegWEn
     datapath_ID.io.ImmSel := controller.io.D_ImmSel
 
+    // Enqueue to ROB in Decode Stage
+    when(!stage_ID.io.Stall && !stage_ID.io.Flush) {
+        // Modify data if needed before enqueuing
+        ROB.io.enq.bits := Cat( 1.U(1.W),1.U(1.W), 0.U(1.W) /*store bit , tmp set 0*/, 1.U(1.W)/*Preg valid*/ ,stage_WB.io.inst(11,7) )
+        ROB.io.enq.valid := true.B
+    }.otherwise{
+        ROB.io.enq.bits:= 0.U
+        ROB.io.enq.valid := false.B
+    }
+
+
     // === EXE stage reg ==============================================================
     //stage_EXE.io.Flush := controller.io.Flush_WB_ID_DH | controller.io.Flush_MEM_ID_DH | controller.io.Flush_EXE_ID_DH | controller.io.Flush_BH
     stage_EXE.io.Flush := controller.io.Stall_LOAD_DH | controller.io.Flush_BH
-    stage_EXE.io.Stall := false.B   // To Be Modified
+    stage_EXE.io.Stall := controller.io.MEM_STALL | controller.io.MULDIV_STALL   // To Be Modified
     stage_EXE.io.pc_in := stage_ID.io.pc
     stage_EXE.io.inst_in := stage_ID.io.inst
     stage_EXE.io.imm_in := datapath_ID.io.imm
@@ -142,7 +167,7 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     io.fwd_MEM_alu_data := datapath_MEM.io.MEM_alu_out
     io.fwd_EXE_data := 0.U(32.W)
     // === MEM stage reg ==============================================================
-    stage_MEM.io.Stall := false.B        // To Be Modified
+    stage_MEM.io.Stall := controller.io.MEM_STALL | controller.io.MULDIV_STALL        // To Be Modified
     stage_MEM.io.pc_in := stage_EXE.io.pc
     stage_MEM.io.inst_in := stage_EXE.io.inst
     stage_MEM.io.DM_wdata_in := datapath_EXE.io.EXE_rs2_rdata_out
@@ -163,8 +188,24 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     io.DataMem.wdata := datapath_MEM.io.Mem_Write_Data
 
     // === WB stage reg ==============================================================
+    // Dequeue head of ROB
+    val headBits = ROB.io.deq.bits
+    val ROB_head_State = headBits(0)
+    val ROB_head_S = headBits(1)
+    val ROB_head_ST = headBits(2)
+    val ROB_head_V = headBits(3)
+    val ROB_head_Preg = Reverse(headBits(8,4))
+    when( (ROB_head_S === 1.U ) && (ROB_head_V === 1.U ) && ( ROB_head_Preg ===  stage_WB.io.inst(11,7)) ) {
+        ROB.io.deq.bits
+        ROB.io.deq.ready := true.B 
+    }.otherwise{
+        ROB.io.deq.ready := false.B     
+    }
+
+
     //stage_WB.io.Stall := controller.io.Hcf        // To Be Modified
     stage_WB.io.Stall := false.B
+    stage_WB.io.Flush := controller.io.MEM_STALL
     stage_WB.io.pc_plus4_in := datapath_MEM.io.MEM_pc_plus_4
     stage_WB.io.inst_in := stage_MEM.io.inst
     stage_WB.io.alu_out_in := datapath_MEM.io.MEM_alu_out
@@ -239,8 +280,12 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     io.EXE_Jump := (stage_EXE.io.inst(6, 0)===JAL) || (stage_EXE.io.inst(6, 0)===JALR)
     io.EXE_Branch := (stage_EXE.io.inst(6, 0)===BRANCH)
 
-    io.Mem_Read_Stall := controller.io.Mem_Read_Stall
-    io.Mem_Read := controller.io.Mem_Read
-    io.Mem_Write := controller.io.Mem_Write
+    io.MEM_STALL := controller.io.MEM_STALL
+    io.MULDIV_STALL := controller.io.MULDIV_STALL
+
+    io.ALU_SEL := controller.io.E_ALUSel
+    io.Stall_LOAD_DH := controller.io.Stall_LOAD_DH
+
+    io.DM_Length := controller.io.DM_Length
 
 }
