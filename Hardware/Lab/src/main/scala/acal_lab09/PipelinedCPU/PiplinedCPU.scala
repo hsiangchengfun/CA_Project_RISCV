@@ -69,6 +69,15 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
 
     })
     /*****  Pipeline Stages Registers Module for holding data *****/
+    val ROB = Module(new Queue(UInt(9.W), 8))
+    // 9 bits
+    // Status ( 1 bit ) o pending 1 finished
+    // Speculative ( 1 bit )
+    // Store Bit ( 1bit )
+    // Valid ( 1 bit )
+    // Physical register ( 5 bits )
+
+
     // stage Registers
     val stage_IF = Module(new Reg_IF(memAddrWidth))
     val stage_ID = Module(new Reg_ID(memAddrWidth))
@@ -122,6 +131,17 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     datapath_ID.io.WB_RegWEn := controller.io.W_RegWEn
     datapath_ID.io.ImmSel := controller.io.D_ImmSel
 
+    // Enqueue to ROB in Decode Stage
+    when(!stage_ID.io.Stall && !stage_ID.io.Flush) {
+        // Modify data if needed before enqueuing
+        ROB.io.enq.bits := Cat( 1.U(1.W),1.U(1.W), 0.U(1.W) /*store bit , tmp set 0*/, 1.U(1.W)/*Preg valid*/ ,stage_WB.io.inst(11,7) )
+        ROB.io.enq.valid := true.B
+    }.otherwise{
+        ROB.io.enq.bits:= 0.U
+        ROB.io.enq.valid := false.B
+    }
+
+
     // === EXE stage reg ==============================================================
     //stage_EXE.io.Flush := controller.io.Flush_WB_ID_DH | controller.io.Flush_MEM_ID_DH | controller.io.Flush_EXE_ID_DH | controller.io.Flush_BH
     stage_EXE.io.Flush := controller.io.Stall_LOAD_DH | controller.io.Flush_BH
@@ -168,6 +188,21 @@ class PiplinedCPU(memAddrWidth: Int, memDataWidth: Int) extends Module {
     io.DataMem.wdata := datapath_MEM.io.Mem_Write_Data
 
     // === WB stage reg ==============================================================
+    // Dequeue head of ROB
+    val headBits = ROB.io.deq.bits
+    val ROB_head_State = headBits(0)
+    val ROB_head_S = headBits(1)
+    val ROB_head_ST = headBits(2)
+    val ROB_head_V = headBits(3)
+    val ROB_head_Preg = Reverse(headBits(8,4))
+    when( (ROB_head_S === 1.U ) && (ROB_head_V === 1.U ) && ( ROB_head_Preg ===  stage_WB.io.inst(11,7)) ) {
+        ROB.io.deq.bits
+        ROB.io.deq.ready := true.B 
+    }.otherwise{
+        ROB.io.deq.ready := false.B     
+    }
+
+
     //stage_WB.io.Stall := controller.io.Hcf        // To Be Modified
     stage_WB.io.Stall := false.B
     stage_WB.io.Flush := controller.io.MEM_STALL
